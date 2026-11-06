@@ -78,14 +78,19 @@ const parseExcel = async (req, res) => {
  */
 const downloadSampleExcel = async (req, res) => {
   try {
-    const buffer = generateSampleExcel();
+    const templateId = req.query.templateId || 'valuation-report';
+    const buffer = generateSampleExcel(templateId);
+    const fileName = templateId === 'valuation-report'
+      ? 'Valuation_Report_Dynamic_Data_Sample.xlsx'
+      : 'Dynamic_PDF_Users_Sample.xlsx';
+
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     );
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename="Dynamic_PDF_Users_Sample.xlsx"'
+      `attachment; filename="${fileName}"`
     );
     return res.send(buffer);
   } catch (error) {

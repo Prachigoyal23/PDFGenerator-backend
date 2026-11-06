@@ -26,6 +26,7 @@ const getBrowser = async () => {
 
   const launchOptions = {
     headless: 'new',
+    pipe: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -47,9 +48,16 @@ const getBrowser = async () => {
 };
 
 /**
+ * Escape string for RegExp
+ */
+const escapeRegExp = (str) => {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Replace all {{key}} placeholders in HTML with values from data object
  */
-const injectDataIntoTemplate = (htmlContent, data) => {
+const injectDataIntoTemplate = (htmlContent, data = {}) => {
   if (!htmlContent) return '';
   
   let rendered = htmlContent;
@@ -57,11 +65,19 @@ const injectDataIntoTemplate = (htmlContent, data) => {
   // Replace case-insensitive {{placeholder}} and {{ placeholder }}
   for (const [key, value] of Object.entries(data)) {
     const safeVal = value !== undefined && value !== null ? String(value) : '';
-    const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'gi');
+    const safeKey = escapeRegExp(key);
+    const regex = new RegExp(`{{\\s*${safeKey}\\s*}}`, 'gi');
     rendered = rendered.replace(regex, safeVal);
+
+    // Also match sanitized snake_case variant: e.g. "Owner Name" -> {{owner_name}}
+    const snakeKey = key.toLowerCase().trim().replace(/[_\W]+/g, '_');
+    if (snakeKey && snakeKey !== key.toLowerCase()) {
+      const snakeRegex = new RegExp(`{{\\s*${escapeRegExp(snakeKey)}\\s*}}`, 'gi');
+      rendered = rendered.replace(snakeRegex, safeVal);
+    }
   }
 
-  // Replace any leftover {{...}} with empty or placeholder
+  // Replace any leftover {{...}} with empty string
   rendered = rendered.replace(/{{\s*[\w.-]+\s*}}/g, '');
 
   return rendered;
@@ -111,13 +127,13 @@ const generateSinglePdf = async (template, recordData) => {
     pageSize: template.pageSize || 'A4'
   });
 
-  const sanitizedName = (recordData.name || 'document')
+  const sanitizedName = (recordData.name || recordData.owner_name || recordData['Owner Name'] || 'document')
     .replace(/[^a-zA-Z0-9_-]/g, '_')
     .substring(0, 40);
-  const invoiceNo = (recordData.invoice_no || 'doc')
+  const docId = (recordData.report_no || recordData['Report No'] || recordData.invoice_no || 'doc')
     .replace(/[^a-zA-Z0-9_-]/g, '_');
   
-  const fileName = `${sanitizedName}_${invoiceNo}.pdf`;
+  const fileName = `${sanitizedName}_${docId}.pdf`;
 
   return {
     fileName,
@@ -151,10 +167,10 @@ const generateBatchZipStream = async (template, records) => {
                 pageSize: template.pageSize || 'A4'
               });
 
-              const sanitizedName = (record.name || `User_${overallIndex}`)
+              const sanitizedName = (record.name || record.owner_name || record['Owner Name'] || `User_${overallIndex}`)
                 .replace(/[^a-zA-Z0-9_-]/g, '_')
                 .substring(0, 30);
-              const safeId = (record.invoice_no || `ID_${overallIndex}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+              const safeId = (record.report_no || record['Report No'] || record.invoice_no || `ID_${overallIndex}`).replace(/[^a-zA-Z0-9_-]/g, '_');
               const entryName = `${String(overallIndex).padStart(3, '0')}_${sanitizedName}_${safeId}.pdf`;
 
               archive.append(Buffer.from(pdfBuffer), { name: entryName });

@@ -1,4 +1,7 @@
+const valuationReportTemplate = require('./valuationReportTemplate');
+
 const defaultTemplates = [
+  valuationReportTemplate,
   {
     id: 'payment-receipt',
     name: 'Payment Receipt / Invoice (Modern Emerald)',
